@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown編輯器</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/htmx.org@1.9.6"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <!-- 確保marked.js在script.js之前加載 -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/highlight.min.js"></script>
+    <!-- OpenAPI相關庫 -->
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/swagger-parser@10.0.3/dist/swagger-parser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+
+:root {
+    --sidebar-width: 16rem;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+}
+
+/* 文章列表樣式 */
+.article-item {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.article-item:hover {
+    border-color: var(--border-base-300, #e5e7eb);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transform: translateX(0.25rem);
+}
+
+.article-item.active {
+    background-color: rgba(var(--primary), 0.1);
+    border-color: var(--primary);
+    border-left-width: 3px;
+}
+
+.article-item h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.article-item .article-date {
+    font-size: 0.75rem;
+    color: var(--text-base-content, #4b5563);
+    opacity: 0.6;
+}
+
+.article-item .article-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.article-item:hover .article-actions {
+    opacity: 1;
+}
+
+/* 編輯器樣式 */
+#editor {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    background-color: transparent;
+    height: 100%;
+    width: 100%;
+    border: none;
+}
+
+/* 預覽樣式 */
+#preview {
+    font-size: 1rem;
+    line-height: 1.6;
+    min-height: 100%;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+#preview h1,
+#preview h2,
+#preview h3,
+#preview h4,
+#preview h5,
+#preview h6 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+#preview h1 {
+    font-size: 2rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding-bottom: 0.5rem;
+}
+
+#preview h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding-bottom: 0.3rem;
+}
+
+#preview h3 {
+    font-size: 1.25rem;
+}
+
+#preview h4 {
+    font-size: 1.1rem;
+}
+
+#preview p {
+    margin-bottom: 1rem;
+}
+
+#preview ul,
+#preview ol {
+    margin-bottom: 1rem;
+    padding-left: 2rem;
+}
+
+#preview li {
+    margin-bottom: 0.5rem;
+}
+
+#preview blockquote {
+    border-left: 3px solid;
+    padding-left: 1rem;
+    margin-left: 0;
+    color: inherit;
+    font-style: italic;
+    margin-bottom: 1rem;
+}
+
+#preview table {
+    width: 100%;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+}
+
+#preview th,
+#preview td {
+    padding: 0.5rem;
+    border: 1px solid;
+    text-align: left;
+}
+
+#preview th {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+#preview code {
+    font-family: 'Fira Code', monospace;
+    padding: 0.2em 0.4em;
+    border-radius: 0.25rem;
+    background-color: rgba(0, 0, 0, 0.05);
+    font-size: 0.9em;
+}
+
+#preview pre {
+    background-color: #282c34;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+#preview pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+    color: #abb2bf;
+}
+
+#preview img {
+    max-width: 100%;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+}
+
+#preview a {
+    color: #3b82f6;
+    text-decoration: none;
+}
+
+#preview a:hover {
+    text-decoration: underline;
+}
+
+#preview hr {
+    margin: 2rem 0;
+    border: 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 自訂滾動條 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #9ca3af;
+}
+
+/* 動畫效果 */
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* AI生成按鈕動畫 */
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes glow {
+    0% {
+        box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
+    }
+    100% {
+        box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+    }
+}
+
+.btn.loading {
+    animation: spin 1s linear infinite;
+}
+
+#generate-ai-content-btn.loading {
+    animation:
+        spin 1.5s linear infinite,
+        pulse 2s ease-in-out infinite,
+        glow 2s ease-in-out infinite;
+}
+
+#generate-ai-content-btn.loading i {
+    animation: spin 1.5s linear infinite reverse;
+}
+
+/* 添加按鈕懸停效果 */
+#generate-ai-content-btn:not(.loading):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 添加按鈕點擊效果 */
+#generate-ai-content-btn:not(.loading):active {
+    transform: translateY(1px);
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+    .drawer-content {
+        padding-bottom: 60px; /* 為底部工具欄留出空間 */
+    }
+}
+
+/* Ensure toasts are visible above other elements and have some margin */
+.toast.toast-top {
+  z-index: 9999 !important; /* Use !important to override potential DaisyUI inline styles or less specific rules */
+  margin-top: 1.5rem; /* Add some space from the top edge */
+}
+
+/* 主題切換動畫 */
+[data-theme] {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 暗色主題調整 */
+[data-theme="dark"] #preview code {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] #preview blockquote {
+    border-left-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] #preview h1,
+[data-theme="dark"] #preview h2 {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 頂部導航欄AI按鈕樣式 */
+.navbar #ai-write-btn,
+.navbar #aiSettingsBtn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.navbar #ai-write-btn {
+    color: var(--primary);
+}
+
+.navbar #ai-write-btn:hover,
+.navbar #aiSettingsBtn:hover {
+    transform: scale(1.1);
+    background-color: rgba(var(--primary), 0.1);
+}
+
+.navbar #ai-write-btn i,
+.navbar #aiSettingsBtn i {
+    font-size: 1.2rem;
+}
+
+/* AI設定按鈕指示器 */
+.navbar #aiSettingsBtn {
+    position: relative;
+}
+
+.navbar #aiSettingsBtn::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 8px;
+    background-color: var(--primary);
+    border-radius: 50%;
+    border: 2px solid var(--base-100);
+}
+
+/* 當AI設定完成時的指示器 */
+.navbar #aiSettingsBtn.configured::after {
+    background-color: #10b981; /* 綠色 */
+}
+
+/* AI設定模態框樣式 */
+#ai-modal .modal-box,
+#ai-prompt-modal .modal-box {
+    max-height: 90vh;
+    overflow-y: auto;
+    max-width: 90vw;
+    width: auto;
+}
+
+/* 確保模態框內的輸入框不溢出 */
+#ai-modal input,
+#ai-modal textarea,
+#ai-prompt-modal input,
+#ai-prompt-modal textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* 密碼輸入框樣式 */
+#ai-api-key {
+    font-family: 'Fira Code', monospace;
+    letter-spacing: 1px;
+}
+
+/* 確保模態框在移動設備上正確顯示 */
+@media (max-width: 768px) {
+    .modal-box {
+        padding: 1rem;
+        margin: 1rem;
+    }
+    
+    .modal-action {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-action button {
+        width: 100%;
+    }
+}
+</style>
+</head>
+<body>
+    <div class="drawer lg:drawer-open">
+        <input id="my-drawer" type="checkbox" class="drawer-toggle" />
+        <div class="drawer-content flex flex-col bg-base-200">
+            <!-- 頂部導航欄 -->
+            <div class="navbar bg-base-100 shadow-md z-10">
+                <div class="flex-none lg:hidden">
+                    <label for="my-drawer" class="btn btn-square btn-ghost">
+                        <i class="fas fa-bars"></i>
+                    </label>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-xl font-bold text-primary">Markdown編輯器</h2>
+                </div>
+                <div class="flex-none gap-2">
+                    <!-- 主題切換按鈕 -->
+                    <div class="dropdown dropdown-end">
+                        <button id="themeToggle" class="btn btn-ghost btn-circle">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 編輯器工具欄 -->
+            <div class="bg-base-100 p-2 border-b border-base-300 shadow-sm">
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('**', '**')" title="粗體">
+                        <i class="fas fa-bold"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('*', '*')" title="斜體">
+                        <i class="fas fa-italic"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('# ', '')" title="標題">
+                        <i class="fas fa-heading"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('[', '](url)')" title="連結">
+                        <i class="fas fa-link"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('![alt text](', ')')" title="圖片">
+                        <i class="fas fa-image"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('```\n', '\n```')" title="程式碼區塊">
+                        <i class="fas fa-code"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('- ', '')" title="列表">
+                        <i class="fas fa-list-ul"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('1. ', '')" title="數字列表">
+                        <i class="fas fa-list-ol"></i>
+                    </button>
+                    <button class="btn btn-sm btn-ghost" onclick="insertMarkdown('> ', '')" title="引用">
+                        <i class="fas fa-quote-right"></i>
+                    </button>
+                    <div class="flex-grow"></div>
+<button id="saveBtn" class="btn btn-primary btn-sm">
+    <i class="fas fa-save mr-2"></i>儲存
+</button>
+<button id="exportBtn" class="btn btn-secondary btn-sm ml-2">
+    <i class="fas fa-file-export mr-2"></i>導出為.md
+</button>
+                </div>
+            </div>
+
+            <!-- 編輯器和預覽 -->
+            <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+                <!-- 編輯器 -->
+                <div class="w-full md:w-1/2 p-4 overflow-hidden flex flex-col">
+                    <div class="card bg-base-100 shadow-lg flex-grow overflow-hidden">
+                        <div class="card-body p-0 overflow-hidden">
+                            <textarea id="editor" class="textarea w-full h-full font-mono text-sm p-4 resize-none focus:outline-none" placeholder="在此撰寫Markdown內容..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 預覽 -->
+                <div class="w-full md:w-1/2 p-4 overflow-hidden flex flex-col">
+                    <div class="card bg-base-100 shadow-lg flex-grow overflow-hidden">
+                        <div class="card-body p-6 overflow-auto">
+                            <div id="preview" class="prose max-w-none"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 左側文章列表 -->
+        <div class="drawer-side">
+            <label for="my-drawer" class="drawer-overlay"></label>
+            <div class="w-80 bg-base-100 h-full flex flex-col">
+                <div class="p-4 border-b border-base-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <h1 class="text-2xl font-bold text-primary">我的文章</h1>
+                        <button id="newArticleBtn" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus mr-2"></i>新增
+                        </button>
+                    </div>
+                    <div class="form-control">
+                        <div class="input-group">
+                            <input type="text" id="searchInput" placeholder="搜尋文章..." class="input input-bordered w-full input-sm" />
+                            <button class="btn btn-sm btn-square">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-y-auto flex-grow p-4">
+                    <div id="articlesList" class="space-y-2">
+                        <!-- 儲存的文章將顯示在這裡 -->
+                    </div>
+                </div>
+                
+                <!-- AI功能區塊 -->
+                <div class="p-4 border-t border-base-300 bg-base-200">
+                    <div class="mb-4">
+                        <h3 class="font-bold text-lg mb-2">AI寫作助手</h3>
+                        
+                        <div class="form-control mb-2">
+                            <label class="label py-1">
+                                <span class="label-text">API端點</span>
+                            </label>
+                            <input type="url" id="ai-api-endpoint" class="input input-bordered input-sm w-full" placeholder="https://api.mistral.ai/v1" />
+                        </div>
+                        
+                        <div class="form-control mb-2">
+                            <label class="label py-1">
+                                <span class="label-text">API金鑰</span>
+                            </label>
+                            <input type="password" id="ai-api-key" class="input input-bordered input-sm w-full" placeholder="輸入您的API金鑰" />
+                        </div>
+                        
+                        <div class="form-control mb-2">
+                            <label class="label py-1">
+                                <span class="label-text">模型名稱</span>
+                            </label>
+                            <input type="text" id="ai-model-name" class="input input-bordered input-sm w-full" placeholder="例如：mistral-medium" />
+                        </div>
+                        
+                        <button id="save-ai-settings-btn" class="btn btn-primary btn-sm w-full mt-2">
+                            <i class="fas fa-save mr-2"></i>應用設定
+                        </button>
+                    </div>
+                    
+                    <div class="divider my-2"></div>
+                    
+                    <div class="mb-2">
+                        <div class="form-control mb-2">
+                            <label class="label py-1">
+                                <span class="label-text">AI提示詞</span>
+                            </label>
+                            <textarea id="ai-prompt-input" class="textarea textarea-bordered textarea-sm w-full" rows="3" placeholder="輸入您的提示詞..."></textarea>
+                        </div>
+                        
+                        <button id="generate-ai-content-btn" class="btn btn-primary btn-sm w-full">
+                            <i class="fas fa-magic mr-2"></i>生成內容
+                        </button>
+                    </div>
+                    
+                    <div class="divider my-2"></div>
+                    
+                    <!-- 文章統計 -->
+                    <div class="stats shadow w-full">
+                        <div class="stat">
+                            <div class="stat-title">總文章數</div>
+                            <div class="stat-value text-primary" id="articleCount">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OpenAPI模態框 -->
+    <dialog id="openapi-modal" class="modal">
+        <div class="modal-box w-11/12 max-w-5xl">
+            <h3 class="font-bold text-lg mb-4">OpenAPI規範轉換為Markdown文檔</h3>
+            
+            <div class="tabs tabs-boxed mb-4">
+                <a id="tab-input" class="tab tab-active">輸入</a>
+                <a id="tab-upload" class="tab">上傳文件</a>
+                <a id="tab-url" class="tab">URL</a>
+            </div>
+            
+            <div id="input-container" class="mb-4">
+                <textarea id="openapi-input" class="textarea textarea-bordered w-full h-64 font-mono" placeholder="請輸入OpenAPI規範 (JSON或YAML格式)..."></textarea>
+            </div>
+            
+            <div id="upload-container" class="mb-4 hidden">
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">上傳OpenAPI規範文件</span>
+                    </label>
+                    <input type="file" id="openapi-file" class="file-input file-input-bordered w-full" accept=".json,.yaml,.yml" />
+                </div>
+            </div>
+            
+            <div id="url-container" class="mb-4 hidden">
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">OpenAPI規範URL</span>
+                    </label>
+                    <input type="url" id="openapi-url" class="input input-bordered w-full" placeholder="https://example.com/openapi.json" />
+                </div>
+            </div>
+            
+            <div class="form-control w-full mb-4">
+                <label class="label">
+                    <span class="label-text">AI提示 (可選)</span>
+                </label>
+                <textarea id="ai-prompt" class="textarea textarea-bordered w-full h-24" placeholder="輸入提示以讓AI優化文檔，例如：'請為每個API端點添加使用示例'..."></textarea>
+            </div>
+            
+            <div class="modal-action">
+                <button id="generate-docs-btn" class="btn btn-primary">
+                    <i class="fas fa-magic mr-2"></i>生成文檔
+                </button>
+                <button id="close-modal-btn" class="btn">取消</button>
+            </div>
+        </div>
+    </dialog>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+    const saveBtn = document.getElementById('saveBtn');
+    const articlesList = document.getElementById('articlesList');
+    const searchInput = document.getElementById('searchInput');
+    const newArticleBtn = document.getElementById('newArticleBtn');
+    const themeToggle = document.getElementById('themeToggle');
+    const articleCount = document.getElementById('articleCount');
+
+    // 初始化marked
+    marked.setOptions({
+        highlight: function(code, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                return hljs.highlight(code, { language: lang }).value;
+            }
+            return hljs.highlightAuto(code).value;
+        },
+        breaks: true,
+        gfm: true
+    });
+
+    // 實時預覽
+    editor.addEventListener('input', function() {
+        try {
+            preview.innerHTML = marked.parse(editor.value);
+            saveToLocalDraft();
+            // 重新渲染代碼高亮
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        } catch (e) {
+            console.error('Markdown rendering error:', e);
+            preview.innerHTML = '<div class="text-error">Markdown渲染錯誤，請檢查您的語法。</div>';
+        }
+    });
+
+    // 初始化預覽
+    if (editor.value) {
+        try {
+            preview.innerHTML = marked.parse(editor.value);
+            // 重新渲染代碼高亮
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        } catch (e) {
+            console.error('Initial markdown rendering error:', e);
+        }
+    }
+
+    // 保存草稿到localStorage
+    function saveToLocalDraft() {
+        localStorage.setItem('markdownDraft', editor.value);
+    }
+
+    // 載入草稿
+    function loadDraft() {
+        const draft = localStorage.getItem('markdownDraft');
+        if (draft) {
+            editor.value = draft;
+            try {
+                preview.innerHTML = marked.parse(draft);
+                // 重新渲染代碼高亮
+                document.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } catch (e) {
+                console.error('Draft loading error:', e);
+            }
+        }
+    }
+
+// 載入已保存的文章
+function loadArticles() {
+    let articles = JSON.parse(localStorage.getItem('markdownArticles')) || [];
+
+    // 如果沒有文章，添加預設的ReadMe文章
+    if (articles.length === 0) {
+        const now = new Date();
+        articles = [{
+            title: "ReadMe - 使用說明",
+            content: `# Markdown編輯器使用說明
+
+## 歡迎使用Markdown編輯器
+
+這個應用程式讓您可以輕鬆創建和管理Markdown格式的文件。以下是主要功能介紹：
+
+### 主要功能
+
+1. **Markdown編輯與預覽**
+   - 左側是編輯區，右側是即時預覽區
+   - 當您在左側編輯時，右側會自動更新顯示渲染後的結果
+
+2. **文章管理**
+   - 可以創建、保存、載入和刪除文章
+   - 所有文章都會保存在瀏覽器的localStorage中
+   - 使用左側面板管理您的文章
+
+3. **AI寫作助手**
+   - 在左側面板下方可以找到AI功能區塊
+   - 需要設定API端點、API金鑰和模型名稱
+   - 設定完成後可以輸入提示詞生成內容
+   - 生成的內容會自動插入到編輯器中
+   - 可以連線到各種OpenAI API服務，如[OpenAI](https://platform.openai.com/docs/api-reference/introduction)、[Gemini](https://ai.google.dev/gemini-api/docs/openai)、 [Claude](https://docs.anthropic.com/zh-TW/api/openai-sdk)、[Mistral](https://docs.mistral.ai/getting-started/quickstart/)等
+   - 可以使用各種不同的模型，詳情參照各AI模型提供商的官方文檔 (例: [Gemini](https://ai.google.dev/gemini-api/docs/models)、[Mistral](https://docs.mistral.ai/getting-started/models/models_overview/))
+
+### 基本使用教學
+
+1. **創建新文章**
+   - 點擊左側面板頂部的「新增」按鈕
+   - 在編輯區輸入您的Markdown內容
+   - 點擊頂部的「儲存」按鈕保存文章
+
+2. **編輯現有文章**
+   - 在左側面板點擊要編輯的文章
+   - 內容會載入到編輯區
+   - 修改後自動保存到localStorage
+
+3. **使用AI功能**
+   - 在左側面板下方填寫API設定
+   > 以 [Mistral AI](https://docs.mistral.ai/getting-started/quickstart/) 為例：
+   \`\`\`
+   API端點: https://api.mistral.ai 
+   API金鑰: YOUR_API_KEY
+   模型名稱: mistral-7b-instruct
+   \`\`\`
+   - 點擊「應用設定」保存
+   - 輸入提示詞後點擊「生成內容」
+   - 生成的內容會自動插入到編輯器
+
+4. **導出內容**
+   - 點擊頂部的「導出為.MD」可以導出已經寫好的文章至本機
+
+### 注意事項
+
+- 所有數據都保存在瀏覽器的localStorage中
+- 清除瀏覽器快取會導致所有文章丟失
+- 建議定期備份重要文章
+
+### 工具欄說明
+
+頂部工具欄提供常用的Markdown格式快捷按鈕：
+- 粗體、斜體
+- 標題、連結、圖片
+- 程式碼區塊、列表
+- 引用
+
+### 主題切換
+
+可以在頂部右側切換深色/淺色主題。
+
+### 開始使用
+
+現在您可以刪除這個預設文章，開始撰寫您自己的Markdown文章了！
+`,
+            date: now.toISOString(),
+            lastModified: now.toISOString()
+        }];
+
+        localStorage.setItem('markdownArticles', JSON.stringify(articles));
+    }
+        articlesList.innerHTML = '';
+        articleCount.textContent = articles.length;
+
+        articles.forEach((article, index) => {
+            const date = article.date ? new Date(article.date).toLocaleDateString() : '未知日期';
+            const articleItem = document.createElement('div');
+            articleItem.className = 'article-item';
+            articleItem.dataset.index = index;
+            articleItem.innerHTML = `
+                <div class="flex flex-col w-full">
+                    <div class="flex justify-between items-center w-full">
+                        <h3 class="truncate">${article.title}</h3>
+                        <div class="article-actions flex space-x-1">
+                            <button class="btn btn-xs btn-ghost btn-circle" onclick="event.stopPropagation(); loadArticle(${index})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-xs btn-ghost btn-circle" onclick="event.stopPropagation(); deleteArticle(${index})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="article-date mt-1">${date}</div>
+                </div>
+            `;
+            articleItem.addEventListener('click', () => loadArticle(index));
+            articlesList.appendChild(articleItem);
+        });
+    }
+
+    // 搜尋文章
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const articles = JSON.parse(localStorage.getItem('markdownArticles')) || [];
+        const filteredArticles = articles.filter(article => 
+            article.title.toLowerCase().includes(searchTerm) || 
+            article.content.toLowerCase().includes(searchTerm)
+        );
+
+        articlesList.innerHTML = '';
+        
+        if (filteredArticles.length === 0) {
+            articlesList.innerHTML = `
+                <div class="text-center py-4 text-base-content text-opacity-60">
+                    <i class="fas fa-search mb-2 text-2xl"></i>
+                    <p>找不到符合「${searchTerm}」的文章</p>
+                </div>
+            `;
+            return;
+        }
+
+        filteredArticles.forEach((article, index) => {
+            const originalIndex = articles.findIndex(a => a.title === article.title && a.content === article.content);
+            const date = article.date ? new Date(article.date).toLocaleDateString() : '未知日期';
+            const articleItem = document.createElement('div');
+            articleItem.className = 'article-item';
+            articleItem.dataset.index = originalIndex;
+            articleItem.innerHTML = `
+                <div class="flex flex-col w-full">
+                    <div class="flex justify-between items-center w-full">
+                        <h3 class="truncate">${article.title}</h3>
+                        <div class="article-actions flex space-x-1">
+                            <button class="btn btn-xs btn-ghost btn-circle" onclick="event.stopPropagation(); loadArticle(${originalIndex})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-xs btn-ghost btn-circle" onclick="event.stopPropagation(); deleteArticle(${originalIndex})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="article-date mt-1">${date}</div>
+                </div>
+            `;
+            articleItem.addEventListener('click', () => loadArticle(originalIndex));
+            articlesList.appendChild(articleItem);
+        });
+    });
+
+    // 儲存文章
+    saveBtn.addEventListener('click', function() {
+        const title = prompt('請輸入文章標題:');
+        if (title) {
+            const content = editor.value;
+            const articles = JSON.parse(localStorage.getItem('markdownArticles')) || [];
+            const now = new Date();
+            
+            articles.push({ 
+                title, 
+                content, 
+                date: now.toISOString(),
+                lastModified: now.toISOString()
+            });
+            
+            localStorage.setItem('markdownArticles', JSON.stringify(articles));
+            loadArticles();
+            
+            // 顯示通知
+            showToast(`文章「${title}」已成功儲存！`, 'success');
+        }
+    });
+
+    // 新增文章
+    newArticleBtn.addEventListener('click', function() {
+        if (editor.value.trim() !== '' && !confirm('編輯器中有未儲存的內容，確定要開始新文章嗎？')) {
+            return;
+        }
+        editor.value = '';
+        preview.innerHTML = '';
+        localStorage.removeItem('markdownDraft');
+        // 移除所有文章的active狀態
+        document.querySelectorAll('.article-item').forEach(item => {
+            item.classList.remove('active');
+        });
+    });
+
+    // 載入文章
+    window.loadArticle = function(index) {
+        const articles = JSON.parse(localStorage.getItem('markdownArticles')) || [];
+        if (articles[index]) {
+            editor.value = articles[index].content;
+            try {
+                preview.innerHTML = marked.parse(articles[index].content);
+                // 重新渲染代碼高亮
+                document.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });
+            } catch (e) {
+                console.error('Article loading error:', e);
+            }
+            
+            // 設置active狀態
+            document.querySelectorAll('.article-item').forEach(item => {
+                item.classList.remove('active');
+                if (parseInt(item.dataset.index) === index) {
+                    item.classList.add('active');
+                }
+            });
+            
+            // 在手機版上自動關閉抽屜
+            if (window.innerWidth < 1024) {
+                document.getElementById('my-drawer').checked = false;
+            }
+        }
+    };
+
+    // 刪除文章
+    window.deleteArticle = function(index) {
+        const articles = JSON.parse(localStorage.getItem('markdownArticles')) || [];
+        if (articles[index] && confirm(`確定要刪除「${articles[index].title}」嗎？`)) {
+            articles.splice(index, 1);
+            localStorage.setItem('markdownArticles', JSON.stringify(articles));
+            loadArticles();
+            
+            // 顯示通知
+            showToast('文章已刪除', 'error');
+        }
+    };
+
+    // 插入Markdown語法
+    window.insertMarkdown = function(before, after) {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const selectedText = editor.value.substring(start, end);
+        const replacement = before + selectedText + after;
+        editor.value = editor.value.substring(0, start) + replacement + editor.value.substring(end);
+        
+        try {
+            preview.innerHTML = marked.parse(editor.value);
+            // 重新渲染代碼高亮
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        } catch (e) {
+            console.error('Markdown insertion error:', e);
+        }
+        
+        saveToLocalDraft();
+        
+        // 重新設置光標位置
+        editor.focus();
+        if (selectedText.length > 0) {
+            editor.selectionStart = start + before.length;
+            editor.selectionEnd = end + before.length;
+        } else {
+            editor.selectionStart = start + before.length;
+            editor.selectionEnd = start + before.length;
+        }
+    };
+
+    // 主題切換
+    themeToggle.addEventListener('click', function() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        
+        // 更新圖標
+        const icon = themeToggle.querySelector('i');
+        if (newTheme === 'dark') {
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+        } else {
+            icon.classList.remove('fa-sun');
+            icon.classList.add('fa-moon');
+        }
+    });
+
+    // 載入保存的主題
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        // 設置正確的圖標
+        const icon = themeToggle.querySelector('i');
+        if (savedTheme === 'dark') {
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+        }
+    }
+    
+    // AI功能初始化
+    initAIFeatures();
+    
+    // 初始化
+    loadTheme();
+    loadDraft();
+    loadArticles();
+
+    // 添加導出功能
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function() {
+            const content = editor.value;
+            if (!content || content.trim() === '') {
+                showToast('編輯器內容為空，無法導出', 'error');
+                return;
+            }
+
+            // 創建Blob對象
+            const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+
+            // 創建下載連結
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'markdown-export-' + new Date().toISOString().slice(0, 10) + '.md';
+            document.body.appendChild(a);
+            a.click();
+
+            // 清理
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 0);
+
+            showToast('文件導出成功！', 'success');
+        });
+    }
+});
+
+// 全局AI設定變數
+let aiApiEndpoint = localStorage.getItem('aiApiEndpoint') || '';
+let aiApiKey = localStorage.getItem('aiApiKey') || '';
+let aiModelName = localStorage.getItem('aiModelName') || '';
+
+// 顯示通知函數
+function showToast(message, type = 'info') {
+    // 限制消息长度，防止溢出
+    if (message.length > 100) {
+        message = message.substring(0, 97) + '...';
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-top toast-end';
+    
+    let icon = 'fa-info-circle';
+    let alertClass = 'alert-info';
+    
+    if (type === 'success') {
+        icon = 'fa-check-circle';
+        alertClass = 'alert-success';
+    } else if (type === 'error') {
+        icon = 'fa-exclamation-circle';
+        alertClass = 'alert-error';
+    } else if (type === 'warning') {
+        icon = 'fa-exclamation-triangle';
+        alertClass = 'alert-warning';
+    }
+    
+    toast.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="fas ${icon}"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// 將Markdown插入編輯器
+function insertToEditor(markdown) {
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+    
+    if (!editor || !preview) {
+        console.error('插入編輯器失敗：找不到編輯器或預覽元素');
+        return;
+    }
+    
+    // 獲取當前光標位置
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    
+    // 插入Markdown
+    editor.value = editor.value.substring(0, start) + markdown + editor.value.substring(end);
+    
+    // 更新預覽
+    try {
+        preview.innerHTML = marked.parse(editor.value);
+        // 重新渲染代碼高亮
+        document.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+        });
+    } catch (e) {
+        console.error('Markdown rendering error:', e);
+    }
+    
+    // 保存到本地草稿
+    localStorage.setItem('markdownDraft', editor.value);
+}
+
+// AI功能初始化
+function initAIFeatures() {
+    const aiApiEndpointInput = document.getElementById('ai-api-endpoint');
+    const aiApiKeyInput = document.getElementById('ai-api-key');
+    const aiModelNameInput = document.getElementById('ai-model-name');
+    const saveAiSettingsBtn = document.getElementById('save-ai-settings-btn');
+    const aiPromptInput = document.getElementById('ai-prompt-input');
+    const generateAiContentBtn = document.getElementById('generate-ai-content-btn');
+    
+    // 檢查元素是否存在
+    if (!aiApiEndpointInput || !aiApiKeyInput || !aiModelNameInput || !saveAiSettingsBtn || !aiPromptInput || !generateAiContentBtn) {
+        console.error('AI功能初始化失敗：缺少必要的HTML元素');
+        return;
+    }
+
+    // 載入已保存的設定
+    aiApiEndpointInput.value = aiApiEndpoint;
+    aiApiKeyInput.value = aiApiKey;
+    aiModelNameInput.value = aiModelName;
+
+    // 保存AI設定
+    saveAiSettingsBtn.addEventListener('click', function() {
+        const endpoint = aiApiEndpointInput.value.trim();
+        const apiKey = aiApiKeyInput.value.trim();
+        const modelName = aiModelNameInput.value.trim();
+        
+        if (!endpoint || !apiKey || !modelName) {
+            showToast('請填寫所有必填欄位', 'error');
+            return;
+        }
+        
+        // 保存設定
+        aiApiEndpoint = endpoint;
+        aiApiKey = apiKey;
+        aiModelName = modelName;
+        
+        localStorage.setItem('aiApiEndpoint', aiApiEndpoint);
+        localStorage.setItem('aiApiKey', aiApiKey);
+        localStorage.setItem('aiModelName', aiModelName);
+        
+        showToast('AI設定已保存', 'success');
+    });
+
+    // 生成AI內容
+    generateAiContentBtn.addEventListener('click', async function() {
+        const prompt = aiPromptInput.value.trim();
+        
+        if (!prompt) {
+            showToast('請輸入提示詞', 'error');
+            return;
+        }
+        
+        if (!aiApiEndpoint || !aiApiKey || !aiModelName) {
+            showToast('請先設定AI API並應用設定', 'error');
+            return;
+        }
+        
+        try {
+            // 顯示加載中
+            generateAiContentBtn.classList.add('loading');
+            generateAiContentBtn.disabled = true;
+            
+            // 調用AI API生成內容
+            const content = await generateAiContent(prompt);
+            
+            // 將生成的內容插入編輯器
+            insertToEditor(content);
+            
+            // 清空提示詞輸入框
+            aiPromptInput.value = '';
+            
+            // 顯示成功通知
+            showToast('AI內容生成成功！', 'success');
+        } catch (error) {
+            console.error('生成AI內容失敗:', error);
+            showToast('生成AI內容失敗: ' + error.message, 'error');
+        } finally {
+            generateAiContentBtn.classList.remove('loading');
+            generateAiContentBtn.disabled = false;
+        }
+    });
+}
+
+// 調用AI API生成內容
+async function generateAiContent(prompt) {
+    try {
+        // 檢查API端點格式
+        if (!aiApiEndpoint.startsWith('http')) {
+            aiApiEndpoint = 'https://' + aiApiEndpoint;
+        }
+        
+        // 移除尾部斜線
+        aiApiEndpoint = aiApiEndpoint.replace(/\/$/, '');
+        
+        // 確定正確的API路徑
+        let apiPath = '/chat/completions';
+        
+        // 檢查是否為OpenAI兼容API
+        if (!aiApiEndpoint.includes('/v1')) {
+            // 如果端點不包含/v1，則添加/v1
+            if (!aiApiEndpoint.endsWith('/')) {
+                aiApiEndpoint += '/';
+            }
+            aiApiEndpoint += 'v1';
+        }
+        
+        // 構建完整的API URL
+        const apiUrl = `${aiApiEndpoint}${apiPath}`;
+        
+        // 準備請求數據
+        const requestData = {
+            model: aiModelName,
+            messages: [
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            temperature: 0.7
+        };
+        
+        // 發送API請求
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${aiApiKey}`
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        // 檢查響應狀態
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `API請求失敗: ${response.status} ${response.statusText}`);
+        }
+        
+        // 解析響應數據
+        const data = await response.json();
+        
+        // Check for API-specific error structure in the response body (even with HTTP 200 OK)
+        if (data.error && data.error.message) {
+            throw new Error(`API錯誤: ${data.error.message}${data.error.type ? ' (類型: ' + data.error.type + ')' : ''}`);
+        }
+
+        // Standard OpenAI/Mistral-like response structure
+        const generatedContent = data.choices?.[0]?.message?.content;
+
+        if (!generatedContent) {
+            let specificError = 'API返回的內容為空或結構不符期望';
+            if (data.choices === undefined) {
+                specificError = 'API回應中缺少 "choices" 欄位';
+            } else if (!Array.isArray(data.choices)) {
+                specificError = 'API回應中 "choices" 欄位不是一個陣列';
+            } else if (data.choices.length === 0) {
+                specificError = 'API回應中 "choices" 陣列為空';
+            } else if (data.choices[0].message === undefined) {
+                specificError = 'API回應的 "choices" 首個元素中缺少 "message" 欄位';
+            } else if (data.choices[0].message.content === undefined) {
+                specificError = 'API回應的 "choices" 首個元素中 "message" 物件缺少 "content" 欄位';
+            }
+            // You can add more specific checks here based on expected response structures
+            // For example, log the actual data structure for debugging if it's unexpected
+            console.error('Unexpected API response structure:', data);
+            throw new Error(specificError);
+        }
+        
+        return generatedContent;
+    } catch (error) {
+        console.error('AI API調用失敗:', error);
+        throw error;
+    }
+}
+
+
+    </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <script src="ai-loading-animation.js"></script>
+</body>
+</html>
