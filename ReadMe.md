@@ -1,5 +1,6 @@
 ## 歡迎使用Markdown編輯器
 
+[Host on Vercel now](ai-md-six.vercel.app)
 這個應用程式讓您可以輕鬆創建和管理Markdown格式的文件。以下是主要功能介紹：
 
 ### 主要功能
@@ -42,6 +43,22 @@
    API金鑰: YOUR_API_KEY
    模型名稱: mistral-7b-instruct
    ```
+
+> OpenAI SDK API links from some model providers:
+- 如果有問題就把v1後面的連結刪掉
+  
+```OpenAI (ChatGPT): https://api.openai.com/v1/chat/completions
+Anthropic (Claude): https://api.anthropic.com/v1/
+Gemini: https://generativelanguage.googleapis.com/v1beta/openai/
+Mistral: https://api.mistral.ai/v1/chat/completions
+Grok: https://api.x.ai/v1
+Perplexity: https://api.perplexity.ai/chat/completions
+Cohere: https://api.cohere.ai/compatibility/v1
+Deepseek: https://api.deepseek.com
+Llama: https://api.llama.com/v1/chat/completions
+Groq: https://api.groq.com/openai/v1/chat/completions
+OpenRouter: https://openrouter.ai/api/v1
+```
    
    - 點擊「應用設定」保存
    - 輸入提示詞後點擊「生成內容」
